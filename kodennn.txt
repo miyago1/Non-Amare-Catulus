@@ -1,0 +1,115 @@
+#define threshold_tid 700
+#define threshold_ljud  100
+#define threshold_snark  3
+
+/// 0x000008
+ISR (PCINT2_vect) {                           // Interrupt för väckningsval knappar
+          if (digitalRead(7))  {              // Ljud valt
+            choice = val_knapp(1);
+        } else if (digitalRead(6))            // Vibration valt
+            choice = val_knapp(2);
+        else if (digitalRead(5))              // Täckesryckning valt
+            choice = val_knapp(3);
+     }
+
+ISR (PCINT0_vect)                             // interrupt för startar ADC knapp
+ {    
+           if (digitalRead(8)) {               // Startar ADC
+            if (toggleADC == 0 && choice != 0) {
+            toggleADC = 1;
+            start_ADC();
+            } else {
+            digitalWrite(13, LOW);
+            toggleADC = 0;
+            interrupts();  
+            }
+        }
+ }
+ 
+int ljudTid () {              // Räknar hur lång tid ljud är över gränsen
+  int counter = 0;
+  do {
+    counter = counter + 10;
+    delay(10);
+  } while (analogRead(A0) > threshold_ljud);
+  return counter;             // Tiden i millisekunder
+}
+
+void vackningsMetod(int valet){
+  counter_snark = 0;
+  switch (valet) {
+                    case 1 : digitalWrite(2, HIGH); delay(3000); digitalWrite(2, LOW); break;         // startar ljudlarm
+                    case 2 : digitalWrite(3, HIGH); delay(3000); digitalWrite(3, LOW); break;         // startar vibration
+                    case 3 : digitalWrite(4, HIGH); delay(3000); digitalWrite(4, LOW); break;         // Startar motorn
+                  }
+}
+
+void pciSetup(byte pin)
+    {
+        *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));   // Pekar bit
+        PCIFR  |= bit (digitalPinToPCICRbit(pin));                    // Cleara interrupt flaggan
+        PCICR  |= bit (digitalPinToPCICRbit(pin));                    // Startar interrupt
+    }
+
+int choice = 0;                              // Väckningsval
+volatile int toggleADC = 0;                  // är ADCn av eller på
+int counter_tid = 0;
+int counter_snark = 0;
+
+void start_ADC() {
+        digitalWrite(13, HIGH);                       // Tänd lampan för ADCn
+        interrupts();                                 // Enablar interrupts igen noInterrupts ();
+        PCMSK2 &= bit(PCINT21);                       // Stänger av interrupts på d 6 och 5 och 7
+        PCMSK2 &= bit(PCINT22);
+        PCMSK2 &= bit(PCINT23);
+       
+        do {
+            if (analogRead(A1) > threshold_ljud) {                         // Tröskel?
+                counter_tid = ljudTid();
+                if (counter_tid > threshold_tid) {
+                  counter_snark++;
+                  if (counter_snark > threshold_snark)
+                  vackningsMetod(choice);
+                }
+            }
+        } while(toggleADC == 1);
+        PCMSK2 |= bit(PCINT21);       // interrupt på igen 
+        PCMSK2 |= bit(PCINT22);
+        PCMSK2 |= bit(PCINT23);
+    }
+    
+int val_knapp(int knappval) {
+  switch(knappval) {
+        case 1 : digitalWrite(12, HIGH); digitalWrite(11, LOW); digitalWrite(10, LOW); choice = 1; break;
+        case 2 : digitalWrite(11, HIGH); digitalWrite(12, LOW); digitalWrite(10, LOW); choice = 2; break;
+        case 3 : digitalWrite(10, HIGH); digitalWrite(11, LOW); digitalWrite(12, LOW); choice = 3; break;
+        return knappval;
+}
+            
+
+
+    void setup() {
+ADCSRA |= bit (ADPS0) | bit (ADPS1) | bit (ADPS2);    // ADC Prescaler 128
+      // Lampor
+      pinMode(13, OUTPUT);                            // ADC lampa          
+      pinMode(12, OUTPUT);                            // Ljud lampa             
+      pinMode(11, OUTPUT);                            // Vibrations lampa           
+      pinMode(10, OUTPUT);                            // Motor lampa
+      
+      // Väckningar
+      pinMode(4, OUTPUT);                             // Ljudväckning
+      pinMode(3, OUTPUT);                             // Vibration larm
+      pinMode(2, OUTPUT);                             // Täckeslarm
+      
+     
+    // Förbered interrupt för digital utgångar
+      pciSetup(8);                                    // ADC knapp          PCINT0
+      pciSetup(7);                                    // Ljud knapp         PCINT23
+      pciSetup(6);                                    // Vibration knapp    PCINT22
+      pciSetup(5);                                    // Motor knapp        PCINT21
+    }
+    
+void loop() {
+      }
+
+
