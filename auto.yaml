@@ -1,0 +1,31 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US
+  keyboard:
+    layout: us
+  network:
+    network:
+      version: 2
+      ethernets:
+        eth0:
+          dhcp4: true
+  identity:
+    hostname: ubuntu-server
+    username: ubuntu
+    password: "$6$rounds=4096$Khw4V/3N8O2$9Im6yGtYcYw9LP1DyV9m8Cg.CuRWGmATXb3UyN1r1H2ybzUKXm5NZFMEP9oMCfD2wY9e0S59OV5D6YSoce4z7/"
+  ssh:
+    install-server: true
+    authorized-keys:
+      - ssh-rsa AAAAB3...your-public-key... user@hostname
+  storage:
+    layout:
+      name: lvm
+  user-data:
+    disable_root: true
+  late-commands:
+    - curtin in-target --target=/target apt-get install -y htop
+  packages:
+    - openssh-server
+  update:
+    control: auto
